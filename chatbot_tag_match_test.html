@@ -1,0 +1,152 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>タグマッチ型チャットボット</title>
+  <style>
+    body { font-family: sans-serif; background: white; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .bot-wrapper { display: flex; align-items: flex-start; margin: 10px 0; }
+    .bot-avatar {
+      width: 70px; height: 70px; border-radius: 50%; object-fit: cover;
+      margin-right: 10px; flex-shrink: 0;
+    }
+    .bot { background: white; border: 2px solid #fdd835; padding: 10px; border-radius: 10px; }
+    .user { background: #dcf8c6; align-self: flex-end; padding: 10px; border-radius: 10px; margin: 10px 0; }
+    .option-button {
+      margin: 5px; padding: 10px; background: #a5d6a7; border: none;
+      border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%;
+    }
+    .video-card { margin-top: 15px; }
+    .video-card iframe { width: 100%; height: 200px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div id="chat"></div>
+  <div id="inputArea"></div>
+</div>
+<script>
+const chat = document.getElementById("chat");
+const inputArea = document.getElementById("inputArea");
+
+const questions = [
+  { q: "① 希望の建坪（大きさ）は？", options: ["10坪以下", "10～15坪", "15～20坪", "20坪以上"] },
+  { q: "② 用途は居住用？セカンドハウス？", options: ["居住用", "セカンドハウス"] },
+  { q: "③ ひとり暮らし？ふたり暮らし？それとも3人暮らし？", options: ["ひとり暮らし", "ふたり暮らし", "3人暮らし"] },
+  { q: "④ インナーガレージは必要？", options: ["必要", "不要"] },
+  { q: "⑤ カバードポーチ付きが希望？", options: ["希望する", "希望しない"] },
+  { q: "⑥ ロフトはあったほうが良いですか？", options: ["あったほうが良い", "なくても良い"] },
+  { q: "⑦ ロフトは平屋申請？それとも2階建て申請？", options: ["平屋申請", "2階建て申請"] },
+  { q: "⑧ あなたは女性？それとも男性？", options: ["女性", "男性"] },
+  { q: "⑨ だいたいの予算は？", options: ["1000万円以下", "1500万円以下", "2000万円以下", "特に決まっていない"] }
+];
+
+const answers = [];
+let step = 0;
+let videoData = [];
+
+function showBotMessage(text) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "bot-wrapper";
+  const avatar = document.createElement("img");
+  avatar.src = "https://via.placeholder.com/70";
+  avatar.className = "bot-avatar";
+  const bubble = document.createElement("div");
+  bubble.className = "bot";
+  bubble.innerText = text;
+  wrapper.appendChild(avatar);
+  wrapper.appendChild(bubble);
+  chat.appendChild(wrapper);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showUserMessage(text) {
+  const div = document.createElement("div");
+  div.className = "user";
+  div.innerText = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showOptions(options) {
+  inputArea.innerHTML = "";
+  options.forEach(option => {
+    const btn = document.createElement("button");
+    btn.className = "option-button";
+    btn.innerText = option;
+    btn.onclick = () => handleAnswer(option);
+    inputArea.appendChild(btn);
+  });
+}
+
+function handleAnswer(answer) {
+  showUserMessage(answer);
+  answers.push(answer);
+  step++;
+  if (step < questions.length) {
+    setTimeout(() => {
+      showBotMessage(questions[step].q);
+      showOptions(questions[step].options);
+    }, 500);
+  } else {
+    setTimeout(() => {
+      showBotMessage("あなたにおすすめの間取り動画はこちらです！");
+      showRecommendations();
+    }, 500);
+  }
+}
+
+function convertAnswersToTags() {
+  const map = {
+    "10坪以下": "#10坪以下", "10～15坪": "#10～15坪", "15～20坪": "#15～20坪", "20坪以上": "#20坪以上",
+    "居住用": "#居住用", "セカンドハウス": "#セカンドハウス",
+    "ひとり暮らし": "#ひとり暮らし", "ふたり暮らし": "#ふたり暮らし", "3人暮らし": "#3人暮らし",
+    "必要": "#インナーガレージ", "希望する": "#カバードポーチ",
+    "あったほうが良い": "#ロフト", "平屋申請": "#ロフト平屋申請", "2階建て申請": "#ロフト2階建て申請",
+    "女性": "#女性向け", "男性": "#男性向け",
+    "1000万円以下": "#1000万円以下", "1500万円以下": "#1500万円以下", "2000万円以下": "#2000万円以下"
+  };
+  return answers.map(ans => map[ans]).filter(Boolean);
+}
+
+function showRecommendations() {
+  inputArea.innerHTML = "";
+  const userTags = convertAnswersToTags();
+
+  const scores = videoData.map(video => {
+    const matchCount = video.tags.filter(tag => userTags.includes(tag)).length;
+    return { ...video, score: matchCount };
+  });
+
+  scores.sort((a, b) => b.score - a.score);
+
+  const top3 = scores.slice(0, 3);
+  top3.forEach(video => {
+    const card = document.createElement("div");
+    card.className = "video-card";
+    card.innerHTML = `
+      <iframe src="https://www.youtube.com/embed/${video.url.split("v=")[1]}" frameborder="0" allowfullscreen></iframe>
+      <p><a href="${video.url}" target="_blank">${video.title}</a></p>
+    `;
+    chat.appendChild(card);
+    chat.scrollTop = chat.scrollHeight;
+  });
+}
+
+// JSONデータを読み込み開始
+fetch("video_tag_data.json")
+  .then(res => res.json())
+  .then(data => {
+    videoData = data;
+    showBotMessage("はい！S-CRAFTのAIニイハラです！今日はアナタにあった間取り動画を提案しますよ！");
+    setTimeout(() => {
+      showBotMessage(questions[0].q);
+      showOptions(questions[0].options);
+    }, 1000);
+  });
+</script>
+</body>
+</html>
